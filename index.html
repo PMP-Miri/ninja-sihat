@@ -23,26 +23,40 @@ import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@m
 const ROUND_SECONDS = 60;
 const LIVES = 3;
 const BAD_CHANCE = 0.72;
-// PENTING: nilai sudu gula di bawah ialah ANGGARAN untuk prototaip (andaian 1 sudu teh ≈ 5 g).
-// Sila semak & ganti dengan data pegawai dietetik / label produk sebelum digunakan di pameran.
+const SAIZ_MAKANAN = 3;   // gandaan saiz makanan (1 = saiz asal). Cuba 2 atau 3 jika terlalu besar untuk skrin anda.
+// KANDUNGAN GULA: hanya angka yang diterbitkan oleh KKM digunakan (KKM: 1 sudu teh gula = 5 g).
+//   sudu  = bilangan sudu teh yang dikira dalam pembilang "sudu gula ditetak" (null = tiada angka KKM, tidak dikira)
+//   info  = ayat yang dipapar bila makanan ditetak
+//   sumber = rujukan (untuk semakan pegawai; tidak dipapar dalam permainan)
+// Item bertanda "PERLU ANGKA" belum ada angka KKM dalam bentuk teks. Angkanya ada dalam infografik
+// KKM "CAKNA Gula" (infosihat.moh.gov.my/perangi-gula.html). Isikan sudu & info selepas disemak.
 const BAD = [
-  { e: '🥤', name: 'Air bergas (1 tin)',     sudu: 7 },
-  { e: '🧋', name: 'Bubble tea',             sudu: 8 },
-  { e: '☕', name: 'Teh tarik manis',         sudu: 3 },
-  { e: '🧃', name: 'Air kotak berperisa',     sudu: 5 },
-  { e: '🍩', name: 'Donut bersalut gula',     sudu: 3 },
-  { e: '🍰', name: 'Kek krim (1 potong)',     sudu: 5 },
-  { e: '🍫', name: 'Coklat bar',              sudu: 5 },
-  { e: '🍭', name: 'Lolipop',                 sudu: 2 },
-  { e: '🍦', name: 'Aiskrim kon',             sudu: 4 },
+  { e: '🧋', name: 'Bubble tea', sudu: 20, info: 'Boleh ada sehingga 20 sudu teh gula!',
+    sumber: 'Infosihat KKM: Minuman "Bubble Tea" Boleh Mengandungi Sehingga 20 Sudu Teh Gula' },
+  { e: '🥤', name: 'Minuman berkarbonat', sudu: 6, info: '6 hingga 7 sudu teh gula sehidang',
+    sumber: 'Portal MyHealth KKM, "Fakta Mengenai Gula": 6-7 sudu teh setiap hidangan (dikira 6, nilai terendah)' },
+  { e: '☕', name: 'Teh tarik', sudu: null, info: 'Sehingga 3 sudu besar susu pekat manis segelas',
+    sumber: 'Portal MyHealth KKM, "Fakta Mengenai Gula". PERLU ANGKA: infografik CAKNA Gula "Teh Tarik Kaw vs Minuman Berperisa"' },
+  { e: '🍩', name: 'Donut glazed', sudu: null, info: 'Tinggi gula tambahan',
+    sumber: 'PERLU ANGKA: infografik CAKNA Gula "Donut Glazed vs Biskut Choc Chip"' },
+  { e: '🍰', name: 'Kek keju', sudu: null, info: 'Tinggi gula tambahan',
+    sumber: 'PERLU ANGKA: infografik CAKNA Gula "Kek Keju vs Cendol"' },
+  { e: '🧃', name: 'Minuman berperisa', sudu: null, info: 'Tinggi gula tambahan',
+    sumber: 'PERLU ANGKA: infografik CAKNA Gula "Minuman Berkarbonat vs Minuman Berperisa"' },
+  { e: '🍫', name: 'Coklat bar', sudu: null, info: 'Tinggi gula tambahan',
+    sumber: 'PERLU ANGKA: tiada angka KKM ditemui; guna label produk' },
+  { e: '🍭', name: 'Lolipop', sudu: null, info: 'Hampir keseluruhannya gula',
+    sumber: 'PERLU ANGKA: tiada angka KKM ditemui; guna label produk' },
+  { e: '🍦', name: 'Aiskrim kon', sudu: null, info: 'Tinggi gula tambahan',
+    sumber: 'PERLU ANGKA: tiada angka KKM ditemui; guna label produk' },
 ];
 const GOOD = [
   { e: '🍎', name: 'Epal' }, { e: '🍌', name: 'Pisang' }, { e: '🥕', name: 'Lobak merah' },
   { e: '🥦', name: 'Brokoli' }, { e: '🍉', name: 'Tembikai' }, { e: '💧', name: 'Air kosong' },
   { e: '🥒', name: 'Timun' }, { e: '🍊', name: 'Oren' },
 ];
-// Mesej penutup. WHO: idealnya < 5% tenaga harian (~25 g, kira-kira 6 sudu teh) gula bebas untuk dewasa.
-const LIMIT_MSG = 'WHO: idealnya kurang 6 sudu teh gula bebas sehari';
+// Mesej penutup. Saranan KKM: tidak melebihi 10 sudu teh (50 g) gula sehari, termasuk gula tersembunyi.
+const LIMIT_MSG = 'Saranan KKM: tidak melebihi 10 sudu teh (50 g) gula sehari';
 
 /* =================== KANVAS =================== */
 const video = document.getElementById('cam');
@@ -55,7 +69,7 @@ function resize() {
   W = innerWidth; H = innerHeight; M = Math.min(W, H);
   cv.width = W * dpr; cv.height = H * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  R = M * 0.07; G = H * 1.5;
+  R = Math.min(M * 0.07 * SAIZ_MAKANAN, H * 0.32, W * 0.18); G = H * 1.5;   // dihadkan supaya tetap muat dalam skrin
 }
 addEventListener('resize', resize); resize();
 
@@ -173,7 +187,7 @@ function text(t, x, y, size, color = '#fff', align = 'center', weight = 800) {
 }
 
 const items = [], halves = [], parts = [], popups = [];
-const popup = (lines, x, y, color, size = M * 0.032) => popups.push({ lines: [].concat(lines), x: Math.min(W - M * 0.2, Math.max(M * 0.2, x)), y, color, size, life: 1.6 });
+const popup = (lines, x, y, color, size = M * 0.04) => popups.push({ lines: [].concat(lines), x: Math.min(W - M * 0.3, Math.max(M * 0.3, x)), y: Math.min(H * 0.8, Math.max(H * 0.22, y)), color, size, life: 1.6 });
 function burst(x, y, color, n = 22) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = 200 + Math.random() * 450;
@@ -189,26 +203,43 @@ const todayKey = () => 'tetak-best-' + new Date().toISOString().slice(0, 10);
 const getBest = () => +(localStorage.getItem(todayKey()) || 0);
 
 function launch(def, isBad, opts = {}) {
-  const x0 = opts.x ?? W * (0.15 + Math.random() * 0.7);
-  const h = opts.h ?? H * (0.55 + Math.random() * 0.3);
+  const r = opts.r ?? R;
+  const x0 = opts.x ?? r + Math.random() * Math.max(1, W - 2 * r);
+  // Titik tertinggi (pusat makanan) sentiasa dalam skrin, walaupun makanan besar
+  const peakY = r * 0.9 + Math.random() * Math.max(0, H * 0.5 - r * 0.9);
+  const h = opts.h ?? (H + r - peakY);
   const vy = -Math.sqrt(2 * G * h), tPeak = -vy / G;
-  const vx = opts.vx ?? ((W / 2 - x0) / (2 * tPeak)) * (0.4 + Math.random() * 0.6);
-  const it = { ...def, bad: isBad, x: x0, y: H + R, vx, vy, rot: 0, vr: (Math.random() - 0.5) * 4, r: opts.r ?? R, float: !!opts.float };
+  const drift = r > M * 0.12 ? 0.3 : 1;   // makanan besar kurang bergerak ke tengah supaya tak bertindih
+  const vx = opts.vx ?? ((W / 2 - x0) / (2 * tPeak)) * (0.4 + Math.random() * 0.6) * drift;
+  const it = { ...def, bad: isBad, x: x0, y: H + r, vx, vy, rot: 0, vr: (Math.random() - 0.5) * 3, r, float: !!opts.float };
   items.push(it); return it;
 }
+// Pilih kedudukan lontaran yang paling jauh daripada makanan yang sedang terbang (elak bertindih)
+function pickX() {
+  let best = R + Math.random() * Math.max(1, W - 2 * R), bestD = -1;
+  for (let k = 0; k < 12; k++) {
+    const x = R + Math.random() * Math.max(1, W - 2 * R);
+    const d = items.reduce((m, it) => Math.min(m, Math.abs(it.x - x)), Infinity);
+    if (d > bestD) { bestD = d; best = x; }
+  }
+  return best;
+}
+const maxLanes = () => Math.max(1, Math.min(3, Math.floor((W - 2 * R) / (2 * R))));   // setiap lorong selebar 1 makanan
 function spawnWave() {
   const progress = 1 - timeLeft / ROUND_SECONDS;
-  const n = Math.random() < 0.25 + progress * 0.35 ? 2 + (Math.random() < progress * 0.5 ? 1 : 0) : 1;
+  const maxN = maxLanes();   // makanan besar = kurang serentak
+  let n = Math.random() < 0.25 + progress * 0.35 ? 2 + (Math.random() < progress * 0.5 ? 1 : 0) : 1;
+  n = Math.max(1, Math.min(n, maxN - items.length));
   for (let i = 0; i < n; i++) {
     const isBad = Math.random() < BAD_CHANCE;
     const pool = isBad ? BAD : GOOD;
-    launch(pool[(Math.random() * pool.length) | 0], isBad);
+    launch(pool[(Math.random() * pool.length) | 0], isBad, { x: pickX() });
   }
   spawnT = (1.25 - progress * 0.6) * (0.8 + Math.random() * 0.4);
 }
 function makeStartItem() {
   items.length = 0;
-  startItem = { ...BAD[0], bad: true, x: W / 2, y: H * 0.56, vx: 0, vy: 0, rot: 0, vr: 0.6, r: M * 0.13, float: true, start: true };
+  startItem = { ...(BAD.find(b => b.e === '🥤') || BAD[0]), bad: true, x: W / 2, y: H * 0.56, vx: 0, vy: 0, rot: 0, vr: 0.6, r: M * 0.16, float: true, start: true };
   items.push(startItem);
 }
 makeStartItem();
@@ -243,10 +274,10 @@ function slice(it, ang) {
   split(it, ang);
   if (it.start) { burst(it.x, it.y, '#ff80ab', 40); sfxSlice(); startGame(); return; }
   if (it.bad) {
-    sliced++; sudu += it.sudu; score += 1;
+    sliced++; sudu += it.sudu || 0; score += 1;
     combo++; comboT = 0.4;
     burst(it.x, it.y, '#ff80ab');
-    popup([`${it.name}`, `≈ ${it.sudu} sudu teh gula`], it.x, it.y - it.r * 1.4, '#ffe082');
+    popup([`${it.name}`, it.info], it.x, it.y - it.r * 1.4, '#ffe082');
     sfxSlice();
   } else {
     lives--; flash = 0.5; shake = 0.4; combo = 0;
@@ -261,7 +292,10 @@ function update(dt) {
   if (state === 'play') {
     timeLeft -= dt;
     spawnT -= dt;
-    if (spawnT <= 0) spawnWave();
+    if (spawnT <= 0) {
+      // Tunggu sehingga skrin cukup lapang (penting bila makanan besar)
+      if (items.length < maxLanes() + (R > M * 0.12 ? 0 : 3)) spawnWave(); else spawnT = 0.15;
+    }
     if (comboT > 0) {
       comboT -= dt;
       if (comboT <= 0) {
@@ -379,12 +413,12 @@ function drawEnd() {
   ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
   text(lives <= 0 ? 'NYAWA HABIS!' : 'MASA TAMAT!', W / 2, H * 0.12, M * 0.065);
   text(`Skor: ${score}`, W / 2, H * 0.22, M * 0.08, '#ffe082');
-  text(`Anda menetak ≈ ${sudu} sudu teh gula 🥄`, W / 2, H * 0.32, M * 0.045, '#ff80ab');
+  text(`Anda menetak sekurang-kurangnya ${sudu} sudu teh gula 🥄`, W / 2, H * 0.32, M * 0.045, '#ff80ab');
   text(LIMIT_MSG, W / 2, H * 0.39, M * 0.028, '#fff', 'center', 600);
   if (score >= getBest() && score > 0) text('🏆 Skor terbaik hari ini!', W / 2, H * 0.80, M * 0.035, '#ffe082');
   else text(`Terbaik hari ini: ${getBest()}`, W / 2, H * 0.80, M * 0.03, '#eee', 'center', 600);
   if (startItem) text('👉 Tetak tin untuk main lagi', W / 2, H * 0.88, M * 0.032, '#ffe082');
-  text('Nilai gula ialah anggaran', W / 2, H * 0.95, M * 0.018, '#bbb', 'center', 500);
+  text('Sumber: Kementerian Kesihatan Malaysia (Perangi Gula / MyHealth)', W / 2, H * 0.95, M * 0.018, '#bbb', 'center', 500);
 }
 
 function draw() {
